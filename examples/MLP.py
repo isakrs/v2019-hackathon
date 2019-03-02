@@ -143,8 +143,8 @@ def train(config, data):
     'num_layers': 4,
     'batch_size': 1,
     'hidden_dim': 69,
-    'learning_rate': 1e-2,
-    'epochs': 100,
+    'learning_rate': 1e-3,
+    'epochs': 1000,
     'dropout': 0.2,
     'log_nth': 1,
     'mode': 'train',
@@ -185,6 +185,7 @@ def predict(config, data):
 
   pred_np, score = fit(data, model, device, params, config)
   pred_df = pd.DataFrame(index=data['X_test'].index)
+  print(pred_df.shape)
   pred_df['MLP'] = pred_np[::config['window'], :].flatten()
   pred_df['True'] = data['y_test'].iloc[::config['window'], :].values.flatten()
   rmse = math.sqrt(metrics.mean_squared_error(pred_df['True'], pred_df['MLP']))
@@ -196,7 +197,7 @@ def fit(data, model, device, params, config, optimizer=None, criterion=None):
   training_generator, validation_generator, test_generator, pred_generator, X_scaler, y_scaler = get_datasets(data, **params)
 
   ## Run single training batch with backprop {loss}
-  def runBatches(generator):
+  def runBatches(generator, isTrainMode):
     losses = AverageMeter()
 
     for i, (X, y) in enumerate(generator):
@@ -204,10 +205,10 @@ def fit(data, model, device, params, config, optimizer=None, criterion=None):
       output = model.forward(X)
       y_pred = output
       loss = criterion(output, y)
-      optimizer.zero_grad()
-      loss.backward()
-      # nn.utils.clip_grad_norm_(model.parameters(), params['clip'])
-      optimizer.step()
+      if isTrainMode:
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
       losses.update(loss.item())
 
     return losses.avg, y_pred, loss
@@ -215,7 +216,6 @@ def fit(data, model, device, params, config, optimizer=None, criterion=None):
   ## Run single prediction batch {y_true, y_pred}
   def predict(generator):
     model.eval()
-    model.apply_dropout()
     y_trues = []
     y_preds = []
     
@@ -224,7 +224,7 @@ def fit(data, model, device, params, config, optimizer=None, criterion=None):
       output = model.forward(X)
       y_trues = np.append(y_trues, y.cpu().numpy())
       y_preds = np.append(y_preds, output.detach().cpu().numpy())
-
+    print(len(y_preds))
     return np.array(y_trues), np.array(y_preds)
 
   ## Do Training
@@ -245,12 +245,12 @@ def fit(data, model, device, params, config, optimizer=None, criterion=None):
 
       # Training
       model.train()
-      train_score, y_pred, loss = runBatches(generator=training_generator)
+      train_score, y_pred, loss = runBatches(generator=training_generator, isTrainMode=True)
       train_scores.append(train_score)
 
       # Validation
       model.eval()
-      val_score, y_pred, loss = runBatches(generator=validation_generator)
+      val_score, y_pred, loss = runBatches(generator=validation_generator, isTrainMode=False)
       val_scores.append(val_score)
 
       # Keep the best model
@@ -264,7 +264,7 @@ def fit(data, model, device, params, config, optimizer=None, criterion=None):
         print('e {e:<3} time: {t:<4.0f} train: {ts:<4.2f} val: {vs:<4.2f}'.format(e=epoch, t=time, ts=train_score, vs=val_score))
 
     # Test the trained model
-    test_score, y_pred, loss = runBatches(generator=test_generator)
+    test_score, y_pred, loss = runBatches(generator=test_generator, isTrainMode=False)
     trues, preds = predict(generator=pred_generator)
 
     # Return results, model and params for saving
