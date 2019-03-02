@@ -16,14 +16,30 @@ from torch.utils.data import Dataset, DataLoader
 import sklearn.metrics as metrics
 from sklearn.preprocessing import MinMaxScaler
 
-class Model(torch.nn.Module):
-  def __init__(self, n_feature, n_hidden, n_output, n_hidden_layers, dropout, **_):
-    super(Model, self).__init__()
-    self.n_hidden_layers = n_hidden_layers
-    self.input_linear = nn.Linear(n_feature, n_hidden)
-    self.middle_linear = nn.Linear(n_hidden, n_hidden)
-    self.output_linear = nn.Linear(n_hidden, n_output)
-    self.dropout = nn.Dropout(dropout)
+
+class LSTM(torch.nn.Module):
+  def __init__(self, input_dim, hidden_dim, batch_size, output_dim, num_layers, dropout, **_):
+    super(LSTM, self).__init__()
+    self.input_dim = input_dim
+    self.hidden_dim = hidden_dim
+    self.batch_size = batch_size
+    self.output_dim = output_dim
+    self.num_layers = num_layers
+    self.input_linear = nn.Linear(input_dim, hidden_dim) # TODO nn.LSTM or Linear
+    #self.middle_linear = nn.Linear(hidden_dim, hidden_dim)
+    #self.linear = nn.Linear(hidden_dim, output_dim)
+    #self.dropout = nn.Dropout(dropout)
+
+    # Define the LSTM layer
+    self.lstm = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers)
+
+    # Define the output layer
+    self.linear = nn.Linear(self.hidden_dim, output_dim)
+
+  def init_hidden(self):
+    # This is what we'll initialize the hidden state as
+    return (torch.zeros(self.num_layers, self.batch_size, self.hidden_dim),
+            torch.zeros(self.num_layers, self.batch_size, self.hidden_dim)) # Why two times...
 
     #self.apply(self.init_weights)
 
@@ -37,13 +53,19 @@ class Model(torch.nn.Module):
         m.train()
     self.apply(apply_drops)
 
-  def forward(self, x):
-    x = self.input_linear(x)
-    for _ in range(0, self.n_hidden_layers):
-      x = self.dropout(F.relu(self.middle_linear(x)))
-    x = self.dropout(x)
-    x = self.output_linear(x)
-    return x
+  def forward(self, input):
+    # Forward pass through LSTM layer
+    # shape of lstm_out: [input_size, batch_size, hidden_dim]
+    # shape of self.hidden: (a, b), where a and b both
+    # have shape (num_layers, batch_size, hidden_dim).
+
+    lstm_out, self.hidden = self.lstm(input.view(len(input), self.batch_size, -1))
+    #lstm_out, self.hidden = self.lstm(1, self.batch_size, -1)
+    
+    # Only take the output from the final timestep
+    # Can pass on the entirety of the lstm_out to the next layer if it is a seq2seq prediction
+    y_pred = self.linear(lstm_out[-1].view(self.batch_size, -1))
+    return y_pred.view(-1)
 
 ## Class to computes and stores the average and current value
 class AverageMeter(object):
@@ -113,16 +135,16 @@ filename = './MLP_model.joblib'
 def train(config, data):
   if (os.path.exists(filename)):
     return
-  params = {
-    'shuffle': True,
+  params = { 
+    'shuffle': False, # TODO Set to true when LSTM
     'num_workers': 4,
-    'n_feature':len(data['X_train'].columns),
-    'n_output': len(data['y_train'].columns),
-    'n_hidden_layers': 1,
-    'batch_size': 64,
-    'n_hidden': 512,
-    'learning_rate': 1e-4,
-    'epochs': 10,
+    'input_dim':len(data['X_train'].columns),
+    'output_dim': len(data['y_train'].columns),
+    'num_layers': 4,
+    'batch_size': 1,
+    'hidden_dim': 69,
+    'learning_rate': 1e-2,
+    'epochs': 100,
     'dropout': 0.2,
     'log_nth': 1,
     'mode': 'train',
@@ -136,8 +158,8 @@ def train(config, data):
 
   torch.manual_seed(42)
 
-  model = Model(**params).to(device)
-  optimizer = torch.optim.SGD(model.parameters(), lr=params['learning_rate'])
+  model = LSTM(**params).to(device)
+  optimizer = torch.optim.Adam(model.parameters(), lr=params['learning_rate'])
   criterion = nn.MSELoss(reduction='sum')
 
   model_dict, val_score = fit(data, model, device, params, config, optimizer, criterion)
@@ -158,7 +180,7 @@ def predict(config, data):
   params['X_scaler'] = state['X_scaler']
   params['y_scaler'] = state['y_scaler']
   
-  model = Model(**params).to(device)
+  model = LSTM(**params).to(device)
   model.load_state_dict(state['model_dict'])
 
   pred_np, score = fit(data, model, device, params, config)
@@ -180,6 +202,7 @@ def fit(data, model, device, params, config, optimizer=None, criterion=None):
     for i, (X, y) in enumerate(generator):
       X, y = Variable(X, requires_grad=True).to(device), Variable(y).to(device)
       output = model.forward(X)
+      y_pred = output
       loss = criterion(output, y)
       optimizer.zero_grad()
       loss.backward()
@@ -187,7 +210,7 @@ def fit(data, model, device, params, config, optimizer=None, criterion=None):
       optimizer.step()
       losses.update(loss.item())
 
-    return losses.avg
+    return losses.avg, y_pred, loss
 
   ## Run single prediction batch {y_true, y_pred}
   def predict(generator):
@@ -206,6 +229,8 @@ def fit(data, model, device, params, config, optimizer=None, criterion=None):
 
   ## Do Training
   if params['mode'] == 'train':
+    print("Sjukeste yoloskriptet")
+
     start_time = datetime.datetime.now()
     train_scores = []
     val_scores = []
@@ -214,14 +239,18 @@ def fit(data, model, device, params, config, optimizer=None, criterion=None):
     best_score = 999
     for epoch in range(params['epochs']):
 
+      # Initialize hidden state
+      # Don't do this if you want your LSTM ti be stateful
+      model.hidden = model.init_hidden()
+
       # Training
       model.train()
-      train_score = runBatches(generator=training_generator)
+      train_score, y_pred, loss = runBatches(generator=training_generator)
       train_scores.append(train_score)
 
       # Validation
       model.eval()
-      val_score = runBatches(generator=validation_generator)
+      val_score, y_pred, loss = runBatches(generator=validation_generator)
       val_scores.append(val_score)
 
       # Keep the best model
@@ -235,7 +264,7 @@ def fit(data, model, device, params, config, optimizer=None, criterion=None):
         print('e {e:<3} time: {t:<4.0f} train: {ts:<4.2f} val: {vs:<4.2f}'.format(e=epoch, t=time, ts=train_score, vs=val_score))
 
     # Test the trained model
-    test_score = runBatches(generator=test_generator)
+    test_score, y_pred, loss = runBatches(generator=test_generator)
     trues, preds = predict(generator=pred_generator)
 
     # Return results, model and params for saving

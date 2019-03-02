@@ -16,7 +16,7 @@ def preprocess(**config):
   stations = config.get('stations', ['Torvet'])
   test_size = config.get('test_size', 0.3)
   val_size = config.get('val_size', 0.1)
-  shuffle = config.get('shuffle', True)
+  shuffle = config.get('shuffle', False)
   window = config.get('window', 6)
 
   if (os.path.exists(cache_path)):
@@ -42,6 +42,7 @@ def preprocess(**config):
 
 ## Filler
 def handle_missing(df, strategy):
+  # TODO
   if strategy == 'mean':
     df = df.fillna(df.groupby([df.index.month, df.index.hour]).transform('mean'))
     df = df.fillna(df.mean())
