@@ -14,9 +14,9 @@ print(os.getcwd())
 def preprocess(**config):
   pred_var = config.get('pred_var', 'Torvet PM10')
   stations = config.get('stations', ['Torvet'])
-  test_size = config.get('test_size', 0.3)
+  test_size = config.get('test_size', 0.7)
   val_size = config.get('val_size', 0.1)
-  shuffle = config.get('shuffle', True)
+  shuffle = config.get('shuffle', False)
   window = config.get('window', 6)
 
   if (os.path.exists(cache_path)):
@@ -31,7 +31,7 @@ def preprocess(**config):
     df.columns = [' '.join(col).strip() for col in df.columns.values]
 
     df = handle_missing(df, strategy='mean')
-    df = add_features(df, labels=['Torvet PM10', 'Torvet PM2.5'])
+    #df = add_features(df, labels=['Torvet PM10', 'Torvet PM2.5']) # TODO Maybe add this later
 
     df.to_csv(cache_path)
 
@@ -42,6 +42,7 @@ def preprocess(**config):
 
 ## Filler
 def handle_missing(df, strategy):
+  # TODO
   if strategy == 'mean':
     df = df.fillna(df.groupby([df.index.month, df.index.hour]).transform('mean'))
     df = df.fillna(df.mean())
@@ -63,6 +64,8 @@ def split_data(X, y, test_size, val_size, shuffle):
   # Improve
   XX, X_test, yy, y_test = train_test_split(X, y, test_size=test_size, shuffle=False)
   X_train, X_val, y_train, y_val = train_test_split(XX, yy, test_size=val_size, shuffle=shuffle)
+  X_test = X_test[:600]
+  y_test = y_test[:600]
   keys = ['X_train', 'X_val', 'X_test', 'y_train', 'y_val', 'y_test']
   values = [X_train, X_val, X_test, y_train, y_val, y_test]
   return dict(zip(keys, values))

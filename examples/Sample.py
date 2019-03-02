@@ -4,12 +4,6 @@
 # In[ ]:
 
 
-import pandas as pd
-
-
-# In[ ]:
-
-
 from process import preprocess
 
 
@@ -45,19 +39,19 @@ print('X test', data['X_test'].shape)
 # In[ ]:
 
 
-import GBM as GBM
-GBM.train(config, data)
-gbm_results, rmse, r2 = GBM.predict(config, data)
-print('RMSE: {:.2f}   R2:{:.2f}'.format(rmse, r2))
+#import GBM as GBM
+#GBM.train(config, data)
+#gbm_results, rmse, r2 = GBM.predict(config, data)
+#print('RMSE: {:.2f}   R2:{:.2f}'.format(rmse, r2))
 
 
 # In[ ]:
 
 
-import RF as RF
-RF.train(config, data)
-rf_results, rmse, r2 = RF.predict(config, data)
-print('RMSE: {:.2f}   R2:{:.2f}'.format(rmse, r2))
+#import RF as RF
+#RF.train(config, data)
+#rf_results, rmse, r2 = RF.predict(config, data)
+#print('RMSE: {:.2f}   R2:{:.2f}'.format(rmse, r2))
 
 
 # In[ ]:
@@ -74,12 +68,11 @@ print('RMSE: {:.2f}   R2:{:.2f}'.format(rmse, r2))
 # In[ ]:
 
 
-import plotly
+import plotly.plotly as py
 import plotly.graph_objs as go
 from plotly.offline import iplot, init_notebook_mode
 import cufflinks
-
-plotly.tools.set_credentials_file(username='evenmm', api_key='4iqRJUmS1Hhuno44DAl7')
+plotly.tools.set_credentials_file(username='evenmm', api_key='jI1wgEOwBZvYdJTSDccn')
 
 
 # In[ ]:
@@ -87,9 +80,5 @@ plotly.tools.set_credentials_file(username='evenmm', api_key='4iqRJUmS1Hhuno44DA
 
 gbm_results['RF'] = rf_results['RF']
 gbm_results['MLP'] = mlp_results['MLP']
-#gbm_results['2019-02-15':]
-#iplot(gbm_results['2019-02-15':], image='png')
-#iplot(gbm_results['2019-02-15':])
-#gbm_results['2019-02-15':].iplot()
-
+gbm_results['2019-02-15':].iplot()
 
