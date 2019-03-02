@@ -21,7 +21,7 @@ params = {
   'n_jobs': 4,
 }
 
-filename = Path('./GBM_model.joblib')
+filename = './GBM_model.joblib'
 
 ## Train Model
 # Trains multiple regressors for direct multistep forecast strategy

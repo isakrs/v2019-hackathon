@@ -107,7 +107,7 @@ def get_datasets(data, batch_size, shuffle, num_workers=0, y_scaler=None, X_scal
   return training_generator, validation_generator, test_generator, pred_generator, X_scaler, y_scaler
 
 
-filename = Path('./MLP_model.joblib')
+filename = './MLP_model.joblib'
 
 ## Train model
 def train(config, data):

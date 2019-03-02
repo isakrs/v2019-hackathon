@@ -19,7 +19,7 @@ params = {
   'verbose': 0,
 }
 
-filename = Path('./RF_model.joblib')
+filename = './RF_model.joblib'
 
 ## Train if no saved model
 # Trains multiple regressors for direct multistep forecast strategy

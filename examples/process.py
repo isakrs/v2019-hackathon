@@ -6,8 +6,9 @@ from sklearn.model_selection import train_test_split
 
 from features import add_features
 
-data_path = Path('../data/NILU_Dataset_Trondheim_2014-2019.csv')
-cache_path = Path('./features.csv')
+data_path = '../data/NILU_Dataset_Trondheim_2014-2019.csv'
+cache_path = './features.csv'
+print(os.getcwd())
 
 ## Prepare data
 def preprocess(**config):
